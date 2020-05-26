@@ -11,7 +11,7 @@ from skimage import exposure,io
 from skimage import external 
 from skimage.color import rgb2gray
 import numpy as np
-from skimage.filters import threshold_adaptive
+from skimage.filters import threshold_local
 
 from joblib import Parallel, delayed
 
@@ -28,7 +28,7 @@ block_size = 35  #Size block of the local thresholding
 def f(arr):
 
     #By default the local thresholding is according to the mode of the Gaussian
-    binary_adaptive = threshold_adaptive(arr, block_size, offset=10)
+    binary_adaptive = threshold_local(arr, block_size, offset=10)
 
     # Now we want to separate the two objects in image
     # Generate the markers as local maxima of the distance
