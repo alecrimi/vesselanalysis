@@ -1,9 +1,10 @@
-%function   [res, vol] = extract_feat_par(fname, method, use_snake, n_block, tot_blocks, min_area_flags )
+function   [res, dens, vol] = extract_feat_par(fname, method, use_snake, n_block, tot_blocks, min_area_flags )
 
 n_block = 1;
 method =1;
 use_snake=0;
-fname ='Q:\Data\20191127_HuADhigh\hFTAA_100_AT8-647_20_OV_X21850_Y66178_647_nm_405-488-561-640-Quadrupleblock_1x_Both_000001.tif';
+fname
+%fname ='Q:\Data\vessel_analysis_AleAnnamaria\fused_tp_0_ch_0_clahe_19_200.tif';
 tot_blocks = 1;
 
 % if method == 0 use global Otsu, otherwise 1 use adaptive threshold of Bradley and Roth.
@@ -43,8 +44,8 @@ for k = 1 + ( (n_block-1)*length_block )   :   length_block + ( (n_block-1)*leng
         count = count +1;
 end
  % Rough background to estimate the convex hull (this needs to be improved)
-foreground =  imbinarize(data,0.01); 
-%foreground = imfill(foreground,'holes');
+foreground =  imbinarize(data,0.3); 
+foreground = imfill(foreground,'holes');
 
 
 % threshold
@@ -59,30 +60,51 @@ else
       T = min_th;
    end
 end
- 
+
 bw = imbinarize(data,max(max(max(T))));
 %bw = imbinarize(data, T  );
-
-
 
 %Remove segmentations smaller than an area
 labeled_data = bwlabeln(bw);
 
 BW2 = bwareaopen(bw, min_area);
  
-
 %Count all connected elements
-res = max(max(max(bwlabeln(BW2)))) ;
+%res = max(max(max(bwlabeln(BW2)))) ;
 vol = sum( sum( sum( BW2 ) )) ;
+
+% Wajtershedpipeline
+D = -bwdist(~BW2);
+Ld = watershed(D);
+bw2 = BW2;
+bw2(Ld==0) = 0;
+mask = imextendedmin(D,2);
+D2 = imimposemin(D,mask);
+Ld2 = watershed(D2);
+bw3 = BW2;
+bw3(Ld2==0) = 0;
+bw4 = imopen(bw3, ones(5,5)); 
+%bw5 = imclose(bw4, ones(5,5)); 
+
+res = max(max(max(bwlabeln(bw4)))) ;
+
 
 % Resize to 1 third to 
 %bw_small = (imresize(uint8(bw),0.3));
 
-saveastiff(uint8(BW2), [fname  num2str(n_block) '_seg_nomax.tif']);
+saveastiff(uint8(BW2), [fname  num2str(n_block) '_seg.tif']);
+saveastiff(uint8(bw4), [fname  num2str(n_block) '_seg_ws.tif']);
 convexhull = sum(sum(sum(foreground)));
 saveastiff(uint8(foreground), [fname  num2str(n_block) '_ch_seg_nomax.tif']);
 
-%end 
- 
+dens = res / convexhull;
+
+% Total count is res
+res
+% Density (total count over volume) is dens
+dens
+% Toval volume plaques is vol
+vol
+
 %Don't use this
 %bw = imbinarize(A,'adaptive','ForegroundPolarity','bright');
