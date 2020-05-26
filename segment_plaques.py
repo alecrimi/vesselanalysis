@@ -11,6 +11,7 @@ from skimage import exposure,io
 from skimage import external 
 from skimage.color import rgb2gray
 import numpy as np
+from skimage.filters import threshold_adaptive
 
 from joblib import Parallel, delayed
 
