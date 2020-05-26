@@ -34,9 +34,9 @@ def f(arr):
     # Generate the markers as local maxima of the distance
     # to the background
     distance = ndimage.distance_transform_edt(binary_adaptive)
-    local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((3, 3)), labels=image)
+    local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((3, 3)), labels=binary_adaptive)
     markers = ndimage.label(local_maxi)[0]
-    labels = watershed(-distance, markers, mask=image)
+    labels = watershed(-distance, markers, mask=binary_adaptive)
 
     #img_adapteq = exposure.equalize_adapthist(arr, clip_limit=0.01) #  kernel_size=k,
     #img_adapteq = img_adapteq.astype(np.float16)
