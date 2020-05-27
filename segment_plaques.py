@@ -49,6 +49,7 @@ print("loaded")
 
 # This sends multiple jobs using parallelization
 res = Parallel(n_jobs=8, backend="threading")(delayed(f)(i) for i in img)
+#res = f( img)
 res = np.asanyarray(res)
 
 print("saving segmentation")
