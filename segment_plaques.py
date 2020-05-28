@@ -10,10 +10,10 @@ from skimage import img_as_float
 from skimage import exposure,io 
 from skimage import external 
 from skimage.color import rgb2gray
+from skimage.filters import threshold_local  , threshold_niblack
 import numpy as np
-from skimage.filters import threshold_local
-
-from joblib import Parallel, delayed
+import  tifffile 
+from joblib import Parallel, delayed 
 
 import sys
 
@@ -22,36 +22,49 @@ input_namefile = sys.argv[1]
 output_namefile = 'seg_'+ input_namefile  
 
 #Settings 
-block_size = 35  #Size block of the local thresholding 
+block_size = 35 #Size block of the local thresholding 
+ 
 
 #Functions 
 def f(arr):
 
     #By default the local thresholding is according to the mode of the Gaussian
     binary_adaptive = threshold_local(arr, block_size, offset=10)
-
+    print('local thresholding done') 
     # Now we want to separate the two objects in image
     # Generate the markers as local maxima of the distance
     # to the background
-    distance = ndimage.distance_transform_edt(binary_adaptive)
-    local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((3, 3)), labels=binary_adaptive)
-    markers = ndimage.label(local_maxi)[0]
-    labels = watershed(-distance, markers, mask=binary_adaptive)
+  #  distance = ndimage.distance_transform_edt(binary_adaptive)
+  #  local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((3, 3)), labels= binary_adaptive )
+   # markers = ndimage.label(local_maxi)[0]
+   # labels = watershed(-distance, markers, mask= binary_adaptive )
 
     #img_adapteq = exposure.equalize_adapthist(arr, clip_limit=0.01) #  kernel_size=k,
     #img_adapteq = img_adapteq.astype(np.float16)
     #img_gray = rgb2gray(img_adapteq)     
-    return labels
+    return binary_adaptive 
 
 print('Loading')
 img = io.imread(input_namefile, plugin='tifffile') 
+print(np.shape(img))
+d, r, c, = np.shape(img)
+print(d)
 print("loaded")
 
 # This sends multiple jobs using parallelization
-res = Parallel(n_jobs=8, backend="threading")(delayed(f)(i) for i in img)
+#res = Parallel(n_jobs=8, backend="threading")(delayed(f)(i) for i in img)
 #res = f( img)
+#for i in range(2):   
+thresh=  threshold_niblack(img, window_size=block_size , k=0.8) # threshold_local(img[i,:,:],block_size, offset=10)
+#thresh=  threshold_local(img, block_size=block_size , offset=10)# threshold_local(img[i,:,:],block_size, offset=10)
+ 
+ 
+
+res= img > thresh
+  
 res = np.asanyarray(res)
+print(np.shape(res))
 
 print("saving segmentation")
-external.tifffile.imsave(output_namefile, res,bigtiff=True) #,plugin="tifffile"
+tifffile.imsave(output_namefile, res,bigtiff=True) #,plugin="tifffile" 
 #external.tifffile.imsave('small'+output_namefile, res,bigtiff=True, compress='LZMA') #,plugin="tifffile"
