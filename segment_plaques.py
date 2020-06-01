@@ -14,6 +14,7 @@ import numpy as np
 import  tifffile 
 from joblib import Parallel, delayed 
 import sys
+from skimage.filters import frangi 
 
 #Settings 
 # Load an example image
@@ -22,7 +23,7 @@ output_namefile = 'seg_'+ input_namefile
 #block_size = 51 #Size block of the local thresholding 
 
 #Functions 
-def f(arr):
+def thresh(arr):
 
     #By default the local thresholding is according to the mode of the Gaussian
     #local threshold
@@ -31,9 +32,10 @@ def f(arr):
     binary_adaptive = arr > thresh
     #b = morphology.remove_small_objects(binary_adaptive, 500)
     res = np.asanyarray(binary_adaptive)
-    tifffile.imsave('neg_pre_watershed_' + output_namefile, res, bigtiff=True)
- 
-    print('local thresholding done')
+    tifffile.imsave('neg_' + output_namefile, res, bigtiff=True)
+    return res
+
+def ws(binary_adaptive):
     # denoised = denoise_tv_chambolle(cleaned, weight=0.2, multichannel=False )
     # Now we want to separate the two objects in image
     # Generate the markers as local maxima of the distance
@@ -49,11 +51,38 @@ print('Loading')
 img = io.imread(input_namefile, plugin='tifffile') 
 print("loaded")
 
-# This sends multiple jobs using parallelization
-res = Parallel(n_jobs=16, backend="threading")(delayed(f)(i) for i in img)
-res = np.asanyarray(res)
+# This sends multiple jobs for segmentation using parallelization
+res = Parallel(n_jobs=16, backend="threading")(delayed(thresh)(i) for i in img)
+res = np.asanyarray(res,dtype=np.int16)
 print("saving segmentation")
+tifffile.imsave('neg_' +output_namefile, res, bigtiff=True)
+
+#Remove tubular structures
+d, r, c, = np.shape(res)
+frangi_res  = np.zeros((d,r,c))
+for i in range(d):
+    frangi_res[i,:,:] =  frangi(res[i,:,:],  black_ridges=False ,beta=0.1)
+print("saving Frangi detects")     
+frangi_res = frangi_res > 2E-14
+frangi_res = np.asanyarray(frangi_res,np.int16)
+tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
+res = res - frangi_res
+#frangi_res = np.asanyarray(frangi_res,np.int16)
+
+tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
+#res = res > 0
+#tifffile.imsave('onlyP_'+output_namefile, res, bigtiff=True)
+#Dilate & Erode
+
+#Consider remove small obj
+
+
+# This sends multiple jobs for watersheding using parallelization
+res = Parallel(n_jobs=16, backend="threading")(delayed(ws)(i) for i in res)
+res = np.asanyarray(res)
+print("saving segmentation WS")
 tifffile.imsave(output_namefile, res, bigtiff=True)
+
 
 # Total number of plaques
 tot = np.amax(res.flat)
@@ -61,7 +90,6 @@ print('Number of segmented plaques')
 print(tot)
 
 #Compute density
-d, r, c, = np.shape(res)
 our_convex_hull  = np.zeros((d,r,c))
 for i in range(d):
      our_convex_hull[i,:,:] =  morphology.convex_hull_image(res[i,:,:])
