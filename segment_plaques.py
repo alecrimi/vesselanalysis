@@ -14,12 +14,17 @@ import numpy as np
 import  tifffile 
 from joblib import Parallel, delayed 
 import sys
-from skimage.filters import frangi 
+from skimage.filters import frangi
+#from skimage.measure import regionprops , label
+from  scipy.ndimage.measurements import label 
+
 
 #Settings 
 # Load an example image
 input_namefile = sys.argv[1]
-output_namefile = 'seg_'+ input_namefile  
+output_namefile = 'seg_'+ input_namefile
+smallest_area = 20
+tubular_removal = True
 #block_size = 51 #Size block of the local thresholding 
 
 #Functions 
@@ -30,7 +35,6 @@ def thresh(arr):
     thresh = threshold_otsu(arr)
 #    thresh = threshold_niblack(arr, window_size=block_size , k=0.01) # threshold_local(img[i,:,:],block_size, offset=10)
     binary_adaptive = arr > thresh
-    #b = morphology.remove_small_objects(binary_adaptive, 500)
     res = np.asanyarray(binary_adaptive)
     tifffile.imsave('neg_' + output_namefile, res, bigtiff=True)
     return res
@@ -58,34 +62,55 @@ print("saving segmentation")
 tifffile.imsave('neg_' +output_namefile, res, bigtiff=True)
 
 #Remove tubular structures
-d, r, c, = np.shape(res)
-frangi_res  = np.zeros((d,r,c))
-for i in range(d):
-    frangi_res[i,:,:] =  frangi(res[i,:,:],  black_ridges=False ,beta=0.1)
-print("saving Frangi detects")     
-frangi_res = frangi_res > 2E-14
-frangi_res = np.asanyarray(frangi_res,np.int16)
-tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
-res = res - frangi_res
-#frangi_res = np.asanyarray(frangi_res,np.int16)
-
-tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
-#res = res > 0
-#tifffile.imsave('onlyP_'+output_namefile, res, bigtiff=True)
-#Dilate & Erode
-
-#Consider remove small obj
-
-
+if tubular_removal == True: 
+    d, r, c, = np.shape(res)
+    frangi_res  = np.zeros((d,r,c))
+    for i in range(d):
+        frangi_res[i,:,:] =  frangi(res[i,:,:],  black_ridges=False ,beta=0.1)
+    print("saving Frangi detects")     
+    frangi_res = frangi_res > 2E-14
+    #Threshold not set to 0 as sometimes due to numerical issues the Frangi detector is showing some 0 values as really small
+    frangi_res = np.asanyarray(frangi_res,np.int16)
+    tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
+    res = res - frangi_res
+    res = res > 0 
+    #Remove noise post-tubular removal
+    selem = morphology.ball(1)
+    res = morphology.binary_erosion(res, selem)
+    res = morphology.remove_small_objects(res, smallest_area)
+    # IS DILATION NECESSARY?!?!?!? If Annamaria happy with results no.
+    res = np.asanyarray(res,dtype=np.int16)
+    tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
+ 
 # This sends multiple jobs for watersheding using parallelization
 res = Parallel(n_jobs=16, backend="threading")(delayed(ws)(i) for i in res)
-res = np.asanyarray(res)
+
+# Extract the region props of the
+#label_img =  label(res)
+#props = regionprops(label_img)
+#res = np.array([prop.label for prop in props])
+res = np.asanyarray(res,dtype=np.int16)
+#res = res > 0 
+
+#res = np.asanyarray(res)
 print("saving segmentation WS")
 tifffile.imsave(output_namefile, res, bigtiff=True)
 
+#Kernel connectivity
+str_3D = np.ones((3,3,3))
+# If left  as ones(3,3,3) it means in 3D: 
+# \  |  /
+# -  x  -
+# /  |  \ 
+
+res, num_features  = label(res,structure=str_3D)
+
+#res = measure.label(res,connectivity=3)
+res = np.asanyarray(res,dtype=np.int16)
+tifffile.imsave('con_' + output_namefile, res, bigtiff=True)
 
 # Total number of plaques
-tot = np.amax(res.flat)
+tot = num_features# np.amax(res.flat)
 print('Number of segmented plaques')
 print(tot)
 
