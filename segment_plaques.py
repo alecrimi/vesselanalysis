@@ -71,7 +71,7 @@ if tubular_removal == True:
     frangi_res = frangi_res > 2E-14
     #Threshold not set to 0 as sometimes due to numerical issues the Frangi detector is showing some 0 values as really small
     frangi_res = np.asanyarray(frangi_res,np.int16)
-    tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
+    #tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
     res = res - frangi_res
     res = res > 0 
     #Remove noise post-tubular removal
@@ -80,7 +80,7 @@ if tubular_removal == True:
     res = morphology.remove_small_objects(res, smallest_area)
     # IS DILATION NECESSARY?!?!?!? If Annamaria happy with results no.
     res = np.asanyarray(res,dtype=np.int16)
-    tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
+    #tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
  
 # This sends multiple jobs for watersheding using parallelization
 res = Parallel(n_jobs=16, backend="threading")(delayed(ws)(i) for i in res)
@@ -94,7 +94,7 @@ res = np.asanyarray(res,dtype=np.int16)
 
 #res = np.asanyarray(res)
 print("saving segmentation WS")
-tifffile.imsave(output_namefile, res, bigtiff=True)
+#tifffile.imsave(output_namefile, res, bigtiff=True)
 
 #Kernel connectivity
 str_3D = np.ones((3,3,3))
@@ -107,7 +107,7 @@ res, num_features  = label(res,structure=str_3D)
 
 #res = measure.label(res,connectivity=3)
 res = np.asanyarray(res,dtype=np.int16)
-tifffile.imsave('con_' + output_namefile, res, bigtiff=True)
+tifffile.imsave(output_namefile, res, bigtiff=True)
 
 # Total number of plaques
 tot = num_features# np.amax(res.flat)
