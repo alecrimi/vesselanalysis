@@ -25,6 +25,7 @@ input_namefile = sys.argv[1]
 output_namefile = 'seg_'+ input_namefile
 smallest_area = 20
 tubular_removal = True
+footprint = 7 #Intensity of watershed if footprint is used
 #block_size = 51 #Size block of the local thresholding 
 
 #Functions 
@@ -38,7 +39,7 @@ def thresh(arr):
     res = np.asanyarray(binary_adaptive)
     tifffile.imsave('neg_' + output_namefile, res, bigtiff=True)
     return res
-
+'''
 def ws(binary_adaptive):
     # denoised = denoise_tv_chambolle(cleaned, weight=0.2, multichannel=False )
     # Now we want to separate the two objects in image
@@ -46,10 +47,14 @@ def ws(binary_adaptive):
     # to the background
     distance = ndimage.distance_transform_edt(binary_adaptive)
     #Footprint is one of the parameters which influence over- or under-segmentation, change it if necessary
-    local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((15, 15)), labels= binary_adaptive ) #
-    markers = ndimage.label(local_maxi)[0]
-    labels =  watershed(-distance, markers, mask= binary_adaptive, watershed_line=True )
+    local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((footprint,footprint, footprint)), labels= binary_adaptive ) #
+    #local_maxi = peak_local_max( distance, indices=False, min_distance=30, labels=binary_adaptive,threshold_abs=9,exclude_border=1)
+    print(np.shape(local_maxi))
+    #markers = ndimage.label(local_maxi)[0]
+    markers = ndimage.label(local_maxi, structure=np.ones((3,3,3)))[0]
+    labels =  watershed(-distance, markers, mask= binary_adaptive, watershed_line=True )  
     return labels 
+'''    
  
 print('Loading')
 img = io.imread(input_namefile, plugin='tifffile') 
@@ -71,19 +76,25 @@ if tubular_removal == True:
     frangi_res = frangi_res > 2E-14
     #Threshold not set to 0 as sometimes due to numerical issues the Frangi detector is showing some 0 values as really small
     frangi_res = np.asanyarray(frangi_res,np.int16)
-    #tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
+    tifffile.imsave('Frangi_'+output_namefile, frangi_res, bigtiff=True)
     res = res - frangi_res
     res = res > 0 
     #Remove noise post-tubular removal
     selem = morphology.ball(1)
     res = morphology.binary_erosion(res, selem)
     res = morphology.remove_small_objects(res, smallest_area)
-    # IS DILATION NECESSARY?!?!?!? If Annamaria happy with results no.
+    selem = morphology.ball(2)
+    res = morphology.binary_dilation(res, selem)
     res = np.asanyarray(res,dtype=np.int16)
-    #tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
+    tifffile.imsave('sub'+output_namefile, res, bigtiff=True)
  
-# This sends multiple jobs for watersheding using parallelization
-res = Parallel(n_jobs=16, backend="threading")(delayed(ws)(i) for i in res)
+# This sends multiple jobs for watersheding using parallelization#
+#res = Parallel(n_jobs=16, backend="threading")(delayed(ws)(i) for i in res)
+distance = ndimage.distance_transform_edt(res)
+#Footprint is one of the parameters which influence over- or under-segmentation, change it if necessary
+local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((footprint,footprint, footprint)), labels= res ) #
+markers = ndimage.label(local_maxi, structure=np.ones((3,3,3)))[0]
+res =  watershed(-distance, markers, mask= res, watershed_line=True )
 
 # Extract the region props of the
 #label_img =  label(res)
@@ -94,23 +105,10 @@ res = np.asanyarray(res,dtype=np.int16)
 
 #res = np.asanyarray(res)
 print("saving segmentation WS")
-#tifffile.imsave(output_namefile, res, bigtiff=True)
-
-#Kernel connectivity
-str_3D = np.ones((3,3,3))
-# If left  as ones(3,3,3) it means in 3D: 
-# \  |  /
-# -  x  -
-# /  |  \ 
-
-res, num_features  = label(res,structure=str_3D)
-
-#res = measure.label(res,connectivity=3)
-res = np.asanyarray(res,dtype=np.int16)
 tifffile.imsave(output_namefile, res, bigtiff=True)
 
 # Total number of plaques
-tot = num_features# np.amax(res.flat)
+tot = np.amax(res.flat)
 print('Number of segmented plaques')
 print(tot)
 
