@@ -16,7 +16,8 @@ from joblib import Parallel, delayed
 import sys
 from skimage.filters import frangi
 #from skimage.measure import regionprops , label
-from  scipy.ndimage.measurements import label 
+from  scipy.ndimage.measurements import label
+import csv
 
 
 #Settings 
@@ -25,11 +26,12 @@ input_namefile = sys.argv[1]
 output_namefile = 'seg_'+ input_namefile
 smallest_area = 20
 tubular_removal = True
-footprint = 20 #Intensity of watershed if footprint is used
+footprint = 15 #Intensity of watershed if footprint is used
 #block_size = 51 #Size block of the local thresholding 
 
 #Functions 
 def thresh(arr):
+
     #By default the local thresholding is according to the mode of the Gaussian
     #local threshold
     thresh = threshold_otsu(arr)
@@ -38,7 +40,7 @@ def thresh(arr):
     res = np.asanyarray(binary_adaptive)
     tifffile.imsave('neg_' + output_namefile, res, bigtiff=True)
     return res
-'''
+
 def ws(binary_adaptive):
     # denoised = denoise_tv_chambolle(cleaned, weight=0.2, multichannel=False )
     # Now we want to separate the two objects in image
@@ -51,9 +53,9 @@ def ws(binary_adaptive):
     print(np.shape(local_maxi))
     #markers = ndimage.label(local_maxi)[0]
     markers = ndimage.label(local_maxi, structure=np.ones((3,3,3)))[0]
-    labels =  watershed(-distance, markers, mask= binary_adaptive, watershed_line=True )  
+    labels =  watershed(-distance, markers, mask= binary_adaptive, watershed_line=True )
+     
     return labels 
-'''    
  
 print('Loading')
 img = io.imread(input_namefile, plugin='tifffile') 
@@ -89,9 +91,13 @@ if tubular_removal == True:
  
 # This sends multiple jobs for watersheding using parallelization#
 #res = Parallel(n_jobs=16, backend="threading")(delayed(ws)(i) for i in res)
+
+    # to the background
 distance = ndimage.distance_transform_edt(res)
-#Footprint is one of the parameters which influence over- or under-segmentation, change it if necessary
-local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((footprint,footprint, footprint)), labels= res ) #
+    #Footprint is one of the parameters which influence over- or under-segmentation, change it if necessary
+local_maxi = peak_local_max( distance, indices=False, footprint=np.ones((footprint,footprint, footprint)), labels= res ) 
+#local_maxi = peak_local_max( distance, indices=False, min_distance=30, labels=res,threshold_abs=9,exclude_border=1)
+    #markers = ndimage.label(local_maxi)[0]
 markers = ndimage.label(local_maxi, structure=np.ones((3,3,3)))[0]
 res =  watershed(-distance, markers, mask= res, watershed_line=True )
 
@@ -121,3 +127,11 @@ vol_size = np.sum(our_convex_hull.flat)
 dens = tot/vol_size
 print('The density of the plqeue is ')
 print(dens)
+ 
+
+with open(r'results_plaquecounting.csv', 'a', newline='') as csvfile:
+    fieldnames = ['File','Footprint','Plaque post-WS','Volume','Density']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+    writer.writerow({'File':input_namefile, 'Footprint':str(footprint),'Plaque post-WS':str(tot), 'Volume':str(vol_size),'Density':str(dens)})
+
