@@ -25,12 +25,11 @@ input_namefile = sys.argv[1]
 output_namefile = 'seg_'+ input_namefile
 smallest_area = 20
 tubular_removal = True
-footprint = 7 #Intensity of watershed if footprint is used
+footprint = 20 #Intensity of watershed if footprint is used
 #block_size = 51 #Size block of the local thresholding 
 
 #Functions 
 def thresh(arr):
-
     #By default the local thresholding is according to the mode of the Gaussian
     #local threshold
     thresh = threshold_otsu(arr)
